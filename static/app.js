@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('analyzeForm');
     const urlInput = document.getElementById('urlInput');
-    const screenshotInput = document.getElementById('screenshotInput');
     const resultsDiv = document.getElementById('results');
     const loadingOverlay = document.getElementById('loadingOverlay');
     const analyzeBtn = form.querySelector('.analyze-btn');
@@ -13,22 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = urlInput.value.trim();
         if (!url) return;
 
-        const file = screenshotInput.files[0];
-
         analyzeBtn.disabled = true;
         btnText.textContent = 'Analyzing...';
         loadingOverlay.hidden = false;
         resultsDiv.hidden = true;
-        resultsDiv.innerHTML = '';
+        resultsDiv.replaceChildren();
 
         try {
-            const formData = new FormData();
-            formData.append('url', url);
-            if (file) formData.append('screenshot', file);
-
-            const response = await fetch('/analyze', {
+            const response = await fetch('/api/analyze', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url })
             });
 
             const data = await response.json();
@@ -37,57 +33,107 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Analysis failed');
             }
 
-            loadingOverlay.hidden = true;
-            resultsDiv.hidden = false;
             resultsDiv.innerHTML = formatResults(data);
-            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (err) {
-            loadingOverlay.hidden = true;
             resultsDiv.hidden = false;
+            resultsDiv.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        } catch (err) {
+            console.error('[PhishLens] Error caught:', err);
             resultsDiv.innerHTML = `
                 <div class="result-error">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="15" y1="9" x2="9" y2="15"/>
-                        <line x1="9" y1="9" x2="15" y2="15"/>
-                    </svg>
-                    <p>${err.message}</p>
+                    <p>${escapeHtml(err.message || 'An unexpected error occurred.')}</p>
                 </div>
             `;
+            resultsDiv.hidden = false;
         } finally {
+            loadingOverlay.hidden = true;
             analyzeBtn.disabled = false;
             btnText.textContent = 'Analyze';
         }
     });
 
     function formatResults(data) {
-        const verdictClass = data.verdict === 'phishing' ? 'result-phishing' : 
-                            data.verdict === 'suspicious' ? 'result-suspicious' : 'result-safe';
-        const verdictLabel = data.verdict.charAt(0).toUpperCase() + data.verdict.slice(1);
+        const score = Number(data.risk_score) || 0;
+        const level = String(data.risk_level || 'unknown');
+        const safeLevel = escapeHtml(level);
+        const levelClass = /^[a-z-]+$/.test(level) ? level : 'unknown';
 
-        return `
-            <div class="result-header ${verdictClass}">
-                <div class="result-verdict">${verdictLabel}</div>
-                <div class="result-confidence">${Math.round(data.confidence * 100)}% confidence</div>
-            </div>
-            ${data.explanation ? `<div class="result-explanation">${data.explanation}</div>` : ''}
-            ${data.indicators?.length ? `
-                <div class="result-indicators">
+        const indicators = Array.isArray(data.indicators)
+            ? data.indicators
+            : [];
+
+        const recommendations = Array.isArray(data.recommendations)
+            ? data.recommendations
+            : [];
+
+        const indicatorHtml = indicators.length
+            ? `
+                <section class="result-indicators">
                     <h4>Risk Indicators</h4>
                     <ul>
-                        ${data.indicators.map(i => `<li>${i}</li>`).join('')}
+                        ${indicators.map(item => {
+                            const name = escapeHtml(item.name || 'Indicator');
+                            const detail = escapeHtml(item.detail || '');
+                            const severity = escapeHtml(item.severity || 'unknown');
+
+                            return `
+                                <li>
+                                    <strong>${name}</strong>
+                                    <span class="indicator-severity">${severity}</span>
+                                    <p>${detail}</p>
+                                </li>
+                            `;
+                        }).join('')}
                     </ul>
+                </section>
+            `
+            : '<p>No risk indicators were identified by the current checks.</p>';
+
+        const recommendationHtml = recommendations.length
+            ? `
+                <section class="result-recommendations">
+                    <h4>Recommendations</h4>
+                    <ul>
+                        ${recommendations.map(item =>
+                            `<li>${escapeHtml(item)}</li>`
+                        ).join('')}
+                    </ul>
+                </section>
+            `
+            : '';
+
+        return `
+            <section class="result-card">
+                <div class="result-header result-${levelClass}">
+                    <div class="result-verdict">${safeLevel.toUpperCase()} RISK</div>
+                    <div class="result-confidence">Risk score: ${Math.min(100, Math.max(0, score))}/100</div>
                 </div>
-            ` : ''}
+
+                <div class="result-explanation">
+                    <strong>Analyzed URL:</strong>
+                    <p class="analyzed-url">${escapeHtml(data.url || '')}</p>
+                </div>
+
+                ${indicatorHtml}
+                ${recommendationHtml}
+
+                <p class="result-disclaimer">
+                    This is a heuristic assessment, not proof that a URL is safe
+                    or malicious. HTTPS alone does not guarantee safety.
+                </p>
+            </section>
         `;
     }
 
-    screenshotInput.addEventListener('change', () => {
-        const label = document.querySelector('.file-upload-label span');
-        if (screenshotInput.files[0]) {
-            label.textContent = screenshotInput.files[0].name;
-        } else {
-            label.textContent = 'Upload screenshot (optional)';
-        }
-    });
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[character]);
+    }
 });
