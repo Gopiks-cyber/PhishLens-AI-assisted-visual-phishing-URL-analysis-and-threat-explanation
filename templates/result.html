@@ -108,26 +108,8 @@
         </footer>
     </div>
 
-    <script src="/static/script.js"></script>
+<script src="/static/script.js"></script>
     <script>
-        const mockData = {
-            "url": "http://secure-login.paypal.com.phishersite.xyz/account/verify?redirect=https://paypal.com&session=abc123",
-            "risk_score": 87,
-            "risk_level": "Critical",
-            "indicators": [
-                {"name": "Domain age", "detail": "Registered 3 days ago", "severity": "high"},
-                {"name": "Suspicious keywords", "detail": "URL contains word secure, login, verify", "severity": "high"},
-                {"name": "High-risk TLD", "detail": ".xyz TLD frequently abused for phishing", "severity": "medium"},
-                {"name": "Brand impersonation", "detail": "Contains 'paypal' in subdomain but not official domain", "severity": "high"}
-            ],
-            "recommendations": ["Do not enter credentials on this site", "Report this URL to your IT security team", "Block this domain at network level"]
-        };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            populateData(mockData);
-            initGauge(mockData.risk_score, mockData.risk_level);
-        });
-
         function populateData(data) {
             document.getElementById('resultUrl').textContent = data.url;
             renderUrlAnatomy(data.url);
@@ -139,7 +121,7 @@
                     </div>
                     <div class="flag-content">
                         <h3>${indicator.name}</h3>
-                        <p>${indicator.detail}</h3>
+                        <p>${indicator.detail}</p>
                     </div>
                     <span class="severity-badge ${indicator.severity}">${indicator.severity}</span>
                 </article>
@@ -185,13 +167,11 @@
 
         function getLevelColor(level) {
             const colors = {
-                'Safe': '#4ade80',
+                'Minimal': '#4ade80',
                 'Low': '#4ade80',
-                'Suspicious': '#fbbf24',
                 'Medium': '#fbbf24',
                 'High': '#f97316',
-                'Dangerous': '#f97316',
-                'Critical': '#f87171'
+                'Error': '#f87171'
             };
             return colors[level] || '#fbbf24';
         }
@@ -267,6 +247,9 @@
                 btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
             }, 1500);
         });
+
+        // Usage: call populateData(data) and initGauge(score, level) with real API data
+        // Example: fetch('/api/analyze', {method: 'POST', body: JSON.stringify({url: '...'})}).then(r => r.json()).then(d => { populateData(d); initGauge(d.risk_score, d.risk_level); });
     </script>
 </body>
 </html>
