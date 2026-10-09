@@ -3,12 +3,15 @@ from analyzer import (
     validate_url,
     extract_indicators,
     calculate_risk_score,
+    calculate_score_breakdown,
     get_risk_level,
     generate_recommendations,
     analyze_url,
     SUSPICIOUS_TLDS,
     BRAND_KEYWORDS,
-    URL_SHORTENERS
+    URL_SHORTENERS,
+    SEVERITY_WEIGHTS,
+    MAX_SCORE
 )
 from urllib.parse import urlparse
 
@@ -173,6 +176,85 @@ class TestCalculateRiskScore:
         assert score == 100
 
 
+class TestCalculateScoreBreakdown:
+    def test_empty_indicators(self):
+        breakdown = calculate_score_breakdown([])
+        assert breakdown["raw_total"] == 0
+        assert breakdown["cap"] == MAX_SCORE
+        assert breakdown["final_score"] == 0
+        assert breakdown["capped"] is False
+        assert breakdown["contributions"] == []
+
+    def test_single_high_indicator(self):
+        indicators = [{"name": "IP Address Host", "severity": "high", "points": 30, "explanation": "test"}]
+        breakdown = calculate_score_breakdown(indicators)
+        assert breakdown["raw_total"] == 30
+        assert breakdown["final_score"] == 30
+        assert breakdown["capped"] is False
+        assert len(breakdown["contributions"]) == 1
+        assert breakdown["contributions"][0]["name"] == "IP Address Host"
+        assert breakdown["contributions"][0]["points"] == 30
+
+    def test_reconciliation_sum_equals_raw_total(self):
+        indicators = [
+            {"name": "A", "severity": "high", "points": 30},
+            {"name": "B", "severity": "medium", "points": 15},
+            {"name": "C", "severity": "low", "points": 5}
+        ]
+        breakdown = calculate_score_breakdown(indicators)
+        contribution_sum = sum(c["points"] for c in breakdown["contributions"])
+        assert contribution_sum == breakdown["raw_total"]
+        assert breakdown["raw_total"] == 50
+        assert breakdown["final_score"] == 50
+
+    def test_cap_applied(self):
+        indicators = [{"name": "A", "severity": "high", "points": 30}] * 5
+        breakdown = calculate_score_breakdown(indicators)
+        assert breakdown["raw_total"] == 150
+        assert breakdown["cap"] == 100
+        assert breakdown["final_score"] == 100
+        assert breakdown["capped"] is True
+
+    def test_final_score_within_bounds(self):
+        indicators = [{"name": "A", "severity": "high", "points": 30}] * 10
+        breakdown = calculate_score_breakdown(indicators)
+        assert 0 <= breakdown["final_score"] <= 100
+
+    def test_contributions_reconcile_with_risk_score(self):
+        indicators = [
+            {"name": "A", "severity": "high", "points": 30},
+            {"name": "B", "severity": "medium", "points": 15}
+        ]
+        breakdown = calculate_score_breakdown(indicators)
+        score = calculate_risk_score(indicators)
+        assert breakdown["final_score"] == score
+
+    def test_severity_weights_match(self):
+        assert SEVERITY_WEIGHTS["high"] == 30
+        assert SEVERITY_WEIGHTS["medium"] == 15
+        assert SEVERITY_WEIGHTS["low"] == 5
+
+    def test_max_score_is_100(self):
+        assert MAX_SCORE == 100
+
+    def test_indicators_have_points_and_explanation(self):
+        parsed = urlparse("http://192.168.1.1/login")
+        indicators = extract_indicators("http://192.168.1.1/login", parsed)
+        assert len(indicators) >= 2
+        for ind in indicators:
+            assert "points" in ind
+            assert "explanation" in ind
+            assert "evidence" in ind
+            assert ind["points"] == SEVERITY_WEIGHTS.get(ind["severity"], 0)
+
+    def test_indicator_explanation_is_plain_english(self):
+        parsed = urlparse("http://192.168.1.1/login")
+        indicators = extract_indicators("http://192.168.1.1/login", parsed)
+        for ind in indicators:
+            assert isinstance(ind["explanation"], str)
+            assert len(ind["explanation"]) > 10
+
+
 class TestGetRiskLevel:
     def test_high_risk(self):
         assert get_risk_level(70) == "high"
@@ -269,3 +351,40 @@ class TestAnalyzeURL:
         # This test passes if analyze_url completes without network calls
         result = analyze_url("https://example.com")
         assert "risk_score" in result
+
+    def test_analyze_url_includes_score_breakdown(self):
+        result = analyze_url("https://example.com")
+        assert "score_breakdown" in result
+        breakdown = result["score_breakdown"]
+        assert breakdown["raw_total"] == 0
+        assert breakdown["final_score"] == 0
+        assert breakdown["contributions"] == []
+
+    def test_analyze_url_score_breakdown_reconciles(self):
+        result = analyze_url("https://paypal.phishersite.tk/login")
+        breakdown = result["score_breakdown"]
+        contribution_sum = sum(c["points"] for c in breakdown["contributions"])
+        assert contribution_sum == breakdown["raw_total"]
+        assert breakdown["final_score"] == min(breakdown["raw_total"], MAX_SCORE)
+        assert breakdown["final_score"] == result["risk_score"]
+
+    def test_analyze_url_score_breakdown_bounds(self):
+        result = analyze_url("https://paypal.phishersite.tk/login")
+        breakdown = result["score_breakdown"]
+        assert 0 <= breakdown["final_score"] <= 100
+        assert 0 <= result["risk_score"] <= 100
+
+    def test_analyze_url_invalid_includes_score_breakdown(self):
+        result = analyze_url("not-a-url")
+        assert "score_breakdown" in result
+        assert result["score_breakdown"]["final_score"] == 0
+        assert result["score_breakdown"]["contributions"] == []
+
+    def test_analyze_url_risk_level_consistent_with_score(self):
+        result = analyze_url("https://paypal.phishersite.tk/login")
+        assert result["risk_level"] == get_risk_level(result["risk_score"])
+
+    def test_analyze_url_recommendations_consistent_with_level(self):
+        result = analyze_url("https://paypal.phishersite.tk/login")
+        recs = generate_recommendations(result["indicators"], result["risk_level"])
+        assert result["recommendations"] == recs
