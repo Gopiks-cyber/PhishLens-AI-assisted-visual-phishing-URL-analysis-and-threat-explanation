@@ -8,109 +8,314 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo">
-                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                    <path d="M12 18V6"/>
-                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
-                </svg>
-                <h1>PhishLens</h1>
+    <div class="dashboard">
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                        <path d="M12 18V6"/>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                    </svg>
+                <span class="logo-text">PhishLens</span>
             </div>
-            <p class="tagline">AI-assisted visual phishing URL analysis & threat explanation</p>
-        </header>
+            <p class="logo-subtext">Cyber Intelligence</p>
+        </div>
+            <nav class="sidebar-nav" role="tablist" aria-label="Analysis views">
+                <button role="tab" class="nav-item active" data-view="scanner" aria-selected="true" aria-controls="panel-scanner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                        <path d="M12 18V6"/>
+                    </svg>
+                    <span>URL Scanner</span>
+                </button>
+                <button role="tab" class="nav-item" data-view="overview" aria-selected="false" aria-controls="panel-overview" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span>Overview</span>
+                </button>
+                <button role="tab" class="nav-item" data-view="threatmap" aria-selected="false" aria-controls="panel-threatmap" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <line x1="9" y1="3" x2="9" y2="21"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                    </svg>
+                    <span>Threat Map</span>
+                </button>
+                <button role="tab" class="nav-item" data-view="breakdown" aria-selected="false" aria-controls="panel-breakdown" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                    <span>Risk Breakdown</span>
+                </button>
+                <button role="tab" class="nav-item" data-view="recommendations" aria-selected="false" aria-controls="panel-recommendations" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    <span>Recommendations</span>
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <p class="version">v1.0.0</p>
+            </div>
+        </aside>
 
-        <main>
-            <form class="analyze-form" id="analyzeForm">
-                <div class="input-group">
-                    <label for="urlInput" class="visually-hidden">Suspicious URL</label>
-                    <input 
-                        type="url" 
-                        id="urlInput" 
-                        name="url" 
-                        placeholder="Paste suspicious URL here" 
-                        autocomplete="off"
-                        required
-                    >
-                </div>
-
-                <div class="input-group">
-                    <label for="screenshotInput" class="visually-hidden">Screenshot upload</label>
-                    <div class="file-upload">
-                        <input 
-                            type="file" 
-                            id="screenshotInput" 
-                            name="screenshot" 
-                            accept="image/*"
-                        >
-                        <div class="file-upload-label">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="17 8 12 3 7 8"/>
-                                <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                            <span>Upload screenshot (optional)</span>
-                        </div>
-                    </div>
-                    <div class="ocr-status" id="ocrStatus" hidden></div>
-                </div>
-
-                <button type="submit" class="analyze-btn">
-                    <span class="btn-text">Analyze</span>
-                    <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                        <polyline points="12 5 19 12 12 19"/>
+        <main class="main-content" role="main">
+            <div class="toolbar">
+                <button class="mobile-menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
                     </svg>
                 </button>
-            </form>
-
-            <div class="loading-overlay" id="loadingOverlay" hidden>
-                <div class="loading-orb">
-                    <div class="orb-core"></div>
-                    <div class="orb-ring"></div>
-                    <div class="orb-ring" style="--delay: 0.15s;"></div>
-                    <div class="orb-ring" style="--delay: 0.3s;"></div>
+                <div class="toolbar-title">PHISHLENS // CYBER INTELLIGENCE</div>
+                <div class="toolbar-actions">
+                    <button class="toolbar-btn" id="newScanBtn" title="New Scan" aria-label="Start new scan" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="16"/>
+                            <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                    </button>
                 </div>
-                <p class="loading-text">Scanning URL<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
             </div>
 
-            <div class="results" id="results" hidden>
-                <div class="result-header">
-                    <span class="result-verdict" id="resultVerdict"></span>
-                    <span class="result-confidence" id="resultConfidence"></span>
-                </div>
-                <div class="result-explanation" id="resultExplanation"></div>
-                <div class="score-breakdown" id="scoreBreakdown" hidden></div>
-                <div class="url-anatomy-section" id="urlAnatomySection" hidden>
-                    <h2>URL Anatomy</h2>
-                    <div class="anatomy-pills" id="anatomyPills" role="group" aria-label="URL components"></div>
-                    <div class="url-suspicious-components" id="suspiciousComponents"></div>
-                </div>
-                <div class="threat-map-section" id="threatMapSection" hidden>
-                    <h2>Threat Map</h2>
-                    <div class="threat-map-panel" id="threatMapPanel" aria-live="polite">
-                        <div class="threat-map-placeholder">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M12 16v-4"/>
-                                <path d="M12 8h.01"/>
-                            </svg>
-                            <p>Select a URL component to view threat details</p>
+            <div class="tab-panels" role="tabpanel">
+                <section class="tab-panel active" id="panel-scanner" role="tabpanel" aria-labelledby="scanner-tab" tabindex="0">
+                    <div class="scanner-view">
+                        <header class="scanner-header">
+                            <div>
+                                <h1>URL Scanner</h1>
+                                <p class="scanner-subtitle">Analyze suspicious URLs for phishing indicators</p>
+                            </div>
+                        </header>
+
+                        <form class="analyze-form" id="analyzeForm">
+                            <div class="input-group">
+                                <label for="urlInput" class="visually-hidden">Suspicious URL</label>
+                                <input
+                                    type="url"
+                                    id="urlInput"
+                                    name="url"
+                                    placeholder="Paste suspicious URL here"
+                                    autocomplete="off"
+                                    required
+                                >
+                            </div>
+
+                            <div class="input-group">
+                                <label for="screenshotInput" class="visually-hidden">Screenshot upload</label>
+                                <div class="file-upload">
+                                    <input
+                                        type="file"
+                                        id="screenshotInput"
+                                        name="screenshot"
+                                        accept="image/*"
+                                    >
+                                    <div class="file-upload-label">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="17 8 12 3 7 8"/>
+                                            <line x1="12" y1="3" x2="12" y2="15"/>
+                                        </svg>
+                                        <span>Upload screenshot (optional)</span>
+                                    </div>
+                                </div>
+                                <div class="ocr-status" id="ocrStatus" hidden></div>
+                            </div>
+
+                            <button type="submit" class="analyze-btn">
+                                <span class="btn-text">Analyze</span>
+                                <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                    <polyline points="12 5 19 12 12 19"/>
+                                </svg>
+                            </button>
+                        </form>
+
+                        <div class="scanner-radar" aria-hidden="true">
+                            <div class="radar-sweep"></div>
+                            <div class="radar-ring"></div>
+                            <div class="radar-ring"></div>
+                            <div class="radar-ring"></div>
+                            <div class="radar-ring"></div>
+                            <div class="radar-crosshair"></div>
+                            <div class="radar-center"></div>
+                            <div class="radar-label">SCANNER ONLINE</div>
+                            <div class="radar-status">AWAITING TARGET</div>
                         </div>
-                        <div class="threat-map-content" hidden></div>
+
+                        <div class="loading-overlay" id="loadingOverlay" hidden>
+                            <div class="loading-orb">
+                                <div class="orb-core"></div>
+                                <div class="orb-ring"></div>
+                                <div class="orb-ring" style="--delay: 0.15s;"></div>
+                                <div class="orb-ring" style="--delay: 0.3s;"></div>
+                            </div>
+                            <p class="loading-text">Scanning URL<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
+                        </div>
+
+                        <div class="visually-hidden" role="status" aria-live="polite" id="scanStatus"></div>
+
+                        <div class="scanner-empty" id="scannerEmpty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                                <path d="M12 18V6"/>
+                            </svg>
+                            <p>Enter a URL above to begin analysis</p>
+                        </div>
                     </div>
-                </div>
-                <div class="https-note" id="httpsNote" hidden></div>
-                <div class="result-indicators" id="resultIndicators"></div>
+                </section>
+
+                <section class="tab-panel" id="panel-overview" role="tabpanel" aria-labelledby="overview-tab" tabindex="0" hidden>
+                    <div class="results-view">
+                        <header class="results-header">
+                            <button class="back-btn" id="backToScanner" aria-label="Back to scanner">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="19" y1="12" x2="5" y2="12"/>
+                                    <polyline points="12 19 5 12 12 5"/>
+                                </svg>
+                                <span>Back to Scanner</span>
+                            </button>
+                            <div class="result-header">
+                                <span class="result-verdict" id="resultVerdict"></span>
+                                <span class="result-confidence" id="resultConfidence"></span>
+                            </div>
+                        </header>
+
+                        <p class="heuristic-disclaimer">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="16" x2="12" y2="12"/>
+                                <line x1="12" y1="8" x2="12.01" y2="8"/>
+                            </svg>
+                            <span>Heuristic estimate — scores and indicators are statistical signals, not proof that a URL is malicious or safe.</span>
+                        </p>
+
+                        <button class="retry-btn" id="retryBtn" hidden>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                            <span>Retry analysis</span>
+                        </button>
+
+                        <div class="risk-ring-section" id="riskRingSection" hidden>
+                            <div class="risk-ring-wrapper">
+                                <svg class="risk-ring-svg" viewBox="0 0 120 120" role="img" aria-label="Risk score">
+                                    <circle class="risk-ring-track" cx="60" cy="60" r="52"/>
+                                    <circle class="risk-ring-progress" id="riskRingProgress" cx="60" cy="60" r="52"/>
+                                </svg>
+                                <div class="risk-ring-center">
+                                    <div class="risk-ring-score" id="riskRingScore">0</div>
+                                    <div class="risk-ring-label">RISK SCORE</div>
+                                </div>
+                            </div>
+                            <div class="risk-ring-level" id="riskRingLevel"></div>
+                        </div>
+
+                        <div class="result-explanation" id="resultExplanation"></div>
+                        <div class="url-anatomy-section" id="urlAnatomySection" hidden>
+                            <h2>URL Anatomy</h2>
+                            <div class="anatomy-pills" id="anatomyPills" role="group" aria-label="URL components"></div>
+                            <div class="url-suspicious-components" id="suspiciousComponents"></div>
+                        </div>
+                        <div class="https-note" id="httpsNote" hidden></div>
+                        <div class="result-indicators" id="resultIndicators"></div>
+                    </div>
+                </section>
+
+                <section class="tab-panel" id="panel-threatmap" role="tabpanel" aria-labelledby="threatmap-tab" tabindex="0" hidden>
+                    <div class="results-view">
+                        <header class="results-header">
+                            <button class="back-btn" id="backToScanner2" aria-label="Back to scanner">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="19" y1="12" x2="5" y2="12"/>
+                                    <polyline points="12 19 5 12 12 5"/>
+                                </svg>
+                                <span>Back to Scanner</span>
+                            </button>
+                            <div class="result-header">
+                                <span class="result-panel-title">Threat Map</span>
+                            </div>
+                        </header>
+
+                        <div class="threat-map-section" id="threatMapSection" hidden>
+                            <h2>Threat Map</h2>
+                            <div class="threat-map-panel" id="threatMapPanel" aria-live="polite">
+                                <div class="threat-map-placeholder">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M12 16v-4"/>
+                                        <path d="M12 8h.01"/>
+                                    </svg>
+                                    <p>Select a URL component to view threat details</p>
+                                </div>
+                                <div class="threat-map-content" hidden></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="tab-panel" id="panel-breakdown" role="tabpanel" aria-labelledby="breakdown-tab" tabindex="0" hidden>
+                    <div class="results-view">
+                        <header class="results-header">
+                            <button class="back-btn" id="backToScanner3" aria-label="Back to scanner">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="19" y1="12" x2="5" y2="12"/>
+                                    <polyline points="12 19 5 12 12 5"/>
+                                </svg>
+                                <span>Back to Scanner</span>
+                            </button>
+                            <div class="result-header">
+                                <span class="result-panel-title">Risk Breakdown</span>
+                            </div>
+                        </header>
+
+                        <div class="score-breakdown" id="scoreBreakdown" hidden></div>
+                    </div>
+                </section>
+
+                <section class="tab-panel" id="panel-recommendations" role="tabpanel" aria-labelledby="recommendations-tab" tabindex="0" hidden>
+                    <div class="results-view">
+                        <header class="results-header">
+                            <button class="back-btn" id="backToScanner4" aria-label="Back to scanner">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="19" y1="12" x2="5" y2="12"/>
+                                    <polyline points="12 19 5 12 12 5"/>
+                                </svg>
+                                <span>Back to Scanner</span>
+                            </button>
+                            <div class="result-header">
+                                <span class="result-panel-title">Recommendations</span>
+                            </div>
+                        </header>
+
+                        <div class="recommendations-section" id="recommendationsSection" hidden>
+                            <h2>Recommendations</h2>
+                            <div class="recommendations-list" id="recommendationsList"></div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
-
-        <footer>
-            <p>Powered by AI • Built for security researchers</p>
-        </footer>
     </div>
+
+    <footer class="global-footer">
+        <p>Powered by AI • Built for security researchers</p>
+    </footer>
 
     <script src="/static/script.js"></script>
     <script src="/static/app.js"></script>

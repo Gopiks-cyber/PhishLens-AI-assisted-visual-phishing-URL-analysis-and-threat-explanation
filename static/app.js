@@ -1,15 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('analyzeForm');
     const urlInput = document.getElementById('urlInput');
-    const resultsDiv = document.getElementById('results');
     const loadingOverlay = document.getElementById('loadingOverlay');
     const analyzeBtn = form.querySelector('.analyze-btn');
     const btnText = analyzeBtn.querySelector('.btn-text');
+    const newScanBtn = document.getElementById('newScanBtn');
+    const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+    const sidebar = document.querySelector('.sidebar');
+
+    const navItems = Array.from(document.querySelectorAll('.nav-item'));
+    const tabPanels = Array.from(document.querySelectorAll('.tab-panel'));
 
     const verdictEl = document.getElementById('resultVerdict');
     const confidenceEl = document.getElementById('resultConfidence');
     const explanationEl = document.getElementById('resultExplanation');
     const breakdownEl = document.getElementById('scoreBreakdown');
+    const riskRingSectionEl = document.getElementById('riskRingSection');
+    const riskRingProgressEl = document.getElementById('riskRingProgress');
+    const riskRingScoreEl = document.getElementById('riskRingScore');
+    const riskRingLevelEl = document.getElementById('riskRingLevel');
     const anatomySectionEl = document.getElementById('urlAnatomySection');
     const anatomyPillsEl = document.getElementById('anatomyPills');
     const suspiciousComponentsEl = document.getElementById('suspiciousComponents');
@@ -19,11 +28,114 @@ document.addEventListener('DOMContentLoaded', () => {
     const threatMapPanelEl = document.getElementById('threatMapPanel');
     const threatMapPlaceholderEl = threatMapPanelEl ? threatMapPanelEl.querySelector('.threat-map-placeholder') : null;
     const threatMapContentEl = threatMapPanelEl ? threatMapPanelEl.querySelector('.threat-map-content') : null;
+    const recommendationsSectionEl = document.getElementById('recommendationsSection');
+    const recommendationsListEl = document.getElementById('recommendationsList');
+    const scannerEmptyEl = document.getElementById('scannerEmpty');
+    const scanStatusEl = document.getElementById('scanStatus');
+    const retryBtn = document.getElementById('retryBtn');
 
     let currentParsed = null;
     let currentIndicators = [];
+    let currentRecommendations = [];
     let currentBreakdown = null;
     let selectedComponentKey = null;
+    let currentView = 'scanner';
+
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.disabled) return;
+            switchView(item.dataset.view);
+        });
+    });
+
+    function switchView(viewName) {
+        currentView = viewName;
+        navItems.forEach(item => {
+            const isActive = item.dataset.view === viewName;
+            item.classList.toggle('active', isActive);
+            item.setAttribute('aria-selected', isActive);
+        });
+        tabPanels.forEach(panel => {
+            const isActive = panel.id === 'panel-' + viewName;
+            panel.classList.toggle('active', isActive);
+            panel.hidden = !isActive;
+        });
+        if (mobileMenuBtn && mobileMenuBtn.getAttribute('aria-expanded') === 'true') {
+            mobileMenuBtn.setAttribute('aria-expanded', 'false');
+            sidebar.classList.remove('open');
+        }
+    }
+
+    function enableAnalysisViews() {
+        navItems.forEach(item => {
+            if (item.dataset.view !== 'scanner') {
+                item.disabled = false;
+            }
+        });
+        newScanBtn.hidden = false;
+    }
+
+    function disableAnalysisViews() {
+        navItems.forEach(item => {
+            if (item.dataset.view !== 'scanner') {
+                item.disabled = true;
+            }
+        });
+        newScanBtn.hidden = true;
+    }
+
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', () => {
+            const expanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true';
+            mobileMenuBtn.setAttribute('aria-expanded', String(!expanded));
+            sidebar.classList.toggle('open');
+        });
+    }
+
+    const backButtons = [
+        document.getElementById('backToScanner'),
+        document.getElementById('backToScanner2'),
+        document.getElementById('backToScanner3'),
+        document.getElementById('backToScanner4')
+    ].filter(Boolean);
+
+    backButtons.forEach(btn => {
+        btn.addEventListener('click', () => switchView('scanner'));
+    });
+
+    if (newScanBtn) {
+        newScanBtn.addEventListener('click', () => {
+            switchView('scanner');
+            urlInput.value = '';
+            urlInput.focus();
+        });
+    }
+
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            switchView('scanner');
+            urlInput.focus();
+        });
+    }
+
+    function createEl(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (typeof text === 'string') node.textContent = text;
+        return node;
+    }
+
+    const ICON_PATHS = {
+        check: '<polyline points="20 6 9 17 4 12"/>',
+        info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
+    };
+
+    function iconSvg(paths, strokeWidth) {
+        const span = document.createElement('span');
+        span.setAttribute('aria-hidden', 'true');
+        span.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (strokeWidth || 2) + '">' + paths + '</svg>';
+        return span.firstChild;
+    }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -34,7 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeBtn.disabled = true;
         btnText.textContent = 'Analyzing...';
         loadingOverlay.hidden = false;
-        resultsDiv.hidden = true;
+        if (scanStatusEl) scanStatusEl.textContent = 'Analyzing URL...';
+        if (retryBtn) retryBtn.hidden = true;
 
         try {
             const response = await fetch('/api/analyze', {
@@ -52,22 +165,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             renderResults(data);
-            resultsDiv.hidden = false;
-            resultsDiv.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
+            enableAnalysisViews();
+            switchView('overview');
+
+            const score = Number(data.risk_score) || 0;
+            const level = String(data.risk_level || 'unknown');
+            if (scanStatusEl) {
+                scanStatusEl.textContent = 'Analysis complete. ' + formatRiskLevel(level) + ', risk score ' + Math.min(100, Math.max(0, score)) + ' out of 100.';
+            }
         } catch (err) {
             console.error('[PhishLens] Error caught:', err);
-            verdictEl.textContent = 'ERROR';
-            confidenceEl.textContent = '';
-            explanationEl.innerHTML = `<p>${escapeHtml(err.message || 'An unexpected error occurred.')}</p>`;
-            breakdownEl.hidden = true;
-            anatomySectionEl.hidden = true;
-            threatMapSectionEl.hidden = true;
-            httpsNoteEl.hidden = true;
-            indicatorsEl.innerHTML = '';
-            resultsDiv.hidden = false;
+            renderError(err.message || 'An unexpected error occurred.');
+            enableAnalysisViews();
+            switchView('overview');
         } finally {
             loadingOverlay.hidden = true;
             analyzeBtn.disabled = false;
@@ -75,10 +185,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function renderError(message) {
+        if (verdictEl) {
+            verdictEl.textContent = 'ANALYSIS ERROR';
+            verdictEl.className = 'result-verdict error';
+        }
+        if (confidenceEl) confidenceEl.textContent = '';
+        if (explanationEl) {
+            explanationEl.innerHTML = '';
+            explanationEl.appendChild(createEl('p', null, message));
+        }
+        if (breakdownEl) {
+            breakdownEl.hidden = true;
+            breakdownEl.innerHTML = '';
+        }
+        if (riskRingSectionEl) riskRingSectionEl.hidden = true;
+        if (anatomySectionEl) anatomySectionEl.hidden = true;
+        if (threatMapSectionEl) threatMapSectionEl.hidden = true;
+        if (httpsNoteEl) httpsNoteEl.hidden = true;
+        if (indicatorsEl) indicatorsEl.innerHTML = '';
+        if (recommendationsSectionEl) recommendationsSectionEl.hidden = true;
+        if (recommendationsListEl) recommendationsListEl.innerHTML = '';
+        if (retryBtn) retryBtn.hidden = false;
+        if (scanStatusEl) scanStatusEl.textContent = 'Analysis failed: ' + message;
+    }
+
     function renderResults(data) {
         const score = Number(data.risk_score) || 0;
         const level = String(data.risk_level || 'unknown');
-        const safeLevel = escapeHtml(level);
         const levelClass = /^[a-z-]+$/.test(level) ? level : 'unknown';
 
         const indicators = Array.isArray(data.indicators)
@@ -91,13 +225,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const breakdown = data.score_breakdown || null;
 
-        // Parse URL for anatomy
         currentParsed = parseUrl(data.url || '');
         currentIndicators = indicators;
+        currentRecommendations = recommendations;
         currentBreakdown = breakdown;
         selectedComponentKey = null;
 
-        // Build interactive anatomy pills
         anatomyPillsEl.innerHTML = '';
         if (currentParsed) {
             buildAnatomyPills(currentParsed);
@@ -106,91 +239,104 @@ document.addEventListener('DOMContentLoaded', () => {
             anatomySectionEl.hidden = true;
         }
 
-        // Build suspicious components (from client-side analysis)
         const suspicious = currentParsed ? analyzeUrlComponents(currentParsed) : [];
-        suspiciousComponentsEl.innerHTML = buildSuspiciousComponents(suspicious);
+        suspiciousComponentsEl.innerHTML = '';
+        suspiciousComponentsEl.appendChild(buildSuspiciousComponents(suspicious));
 
-        // HTTPS note
         const isHttps = currentParsed && currentParsed.protocol === 'https';
-        const httpsNoteHtml = buildHttpsNote(isHttps);
-        httpsNoteEl.innerHTML = httpsNoteHtml;
-        httpsNoteEl.hidden = !httpsNoteHtml;
+        httpsNoteEl.innerHTML = '';
+        httpsNoteEl.appendChild(buildHttpsNote(isHttps));
+        httpsNoteEl.hidden = false;
 
-        // Update verdict and confidence
-        verdictEl.textContent = formatRiskLevel(level);
-        verdictEl.className = 'result-verdict ' + levelClass;
-        confidenceEl.textContent = 'Risk score: ' + Math.min(100, Math.max(0, score)) + '/100';
+        if (verdictEl) {
+            verdictEl.textContent = formatRiskLevel(level);
+            verdictEl.className = 'result-verdict ' + levelClass;
+        }
+        if (confidenceEl) confidenceEl.textContent = 'Risk score: ' + Math.min(100, Math.max(0, score)) + '/100';
 
-        // Update explanation
-        explanationEl.innerHTML = `
-            <strong>Analyzed URL:</strong>
-            <p class="analyzed-url">${escapeHtml(data.url || '')}</p>
-        `;
+        renderRiskRing(score, level, levelClass);
 
-        // Update score breakdown
-        if (breakdown) {
-            breakdownEl.innerHTML = formatScoreBreakdown(breakdown);
-            breakdownEl.hidden = false;
-        } else {
-            breakdownEl.hidden = true;
+        explanationEl.innerHTML = '';
+        explanationEl.appendChild(createEl('strong', null, 'Analyzed URL:'));
+        explanationEl.appendChild(createEl('p', 'analyzed-url', data.url || ''));
+
+        if (breakdownEl) {
+            breakdownEl.innerHTML = '';
+            if (breakdown) {
+                breakdownEl.appendChild(formatScoreBreakdown(breakdown));
+                breakdownEl.hidden = false;
+            } else {
+                breakdownEl.hidden = true;
+            }
         }
 
-        // Update indicators
+        indicatorsEl.innerHTML = '';
         if (indicators.length) {
-            indicatorsEl.innerHTML = `
-                <h4>Risk Indicators</h4>
-                <ul>
-                    ${indicators.map(item => {
-                        const name = escapeHtml(item.name || 'Indicator');
-                        const detail = escapeHtml(item.detail || '');
-                        const severity = escapeHtml(item.severity || 'unknown');
-                        const points = Number(item.points) || 0;
-                        const explanation = escapeHtml(item.explanation || '');
-                        const evidence = escapeHtml(item.evidence || '');
-
-                        return `
-                            <li>
-                                <strong>${name}</strong>
-                                <span class="indicator-severity">${severity}</span>
-                                <span class="indicator-points">+${points} pts</span>
-                                <p>${detail}</p>
-                                ${evidence ? '<p class="indicator-evidence">Evidence: ' + evidence + '</p>' : ''}
-                                ${explanation ? '<p class="indicator-explanation">' + explanation + '</p>' : ''}
-                            </li>
-                        `;
-                    }).join('')}
-                </ul>
-            `;
+            indicatorsEl.appendChild(createEl('h4', null, 'Risk Indicators'));
+            const ul = createEl('ul');
+            indicators.forEach(item => {
+                const li = createEl('li');
+                li.appendChild(createEl('strong', null, item.name || 'Indicator'));
+                li.appendChild(createEl('span', 'indicator-severity severity-' + (item.severity || 'unknown'), item.severity || 'unknown'));
+                li.appendChild(createEl('span', 'indicator-points', '+' + (Number(item.points) || 0) + ' pts'));
+                if (item.detail) li.appendChild(createEl('p', null, item.detail));
+                if (item.evidence) {
+                    const evP = createEl('p', 'indicator-evidence');
+                    evP.textContent = 'Evidence: ' + item.evidence;
+                    li.appendChild(evP);
+                }
+                if (item.explanation) li.appendChild(createEl('p', 'indicator-explanation', item.explanation));
+                ul.appendChild(li);
+            });
+            indicatorsEl.appendChild(ul);
         } else {
-            indicatorsEl.innerHTML = '<p>No risk indicators were identified by the current checks.</p>';
+            indicatorsEl.appendChild(createEl('p', null, 'No risk indicators were identified by the current checks. This does not guarantee the URL is safe — the analyzer only checks a fixed set of heuristic patterns and never contacts the URL.'));
         }
 
-        // Add recommendations
         if (recommendations.length) {
-            const recHtml = `
-                <section class="result-recommendations">
-                    <h4>Recommendations</h4>
-                    <ul>
-                        ${recommendations.map(item =>
-                            '<li>' + escapeHtml(item) + '</li>'
-                        ).join('')}
-                    </ul>
-                </section>
-            `;
-            indicatorsEl.insertAdjacentHTML('beforeend', recHtml);
+            recommendationsSectionEl.hidden = false;
+            recommendationsListEl.innerHTML = '';
+            const ul = createEl('ul', 'recommendations-list');
+            recommendations.forEach(item => {
+                ul.appendChild(createEl('li', null, item));
+            });
+            recommendationsListEl.appendChild(ul);
+        } else {
+            recommendationsSectionEl.hidden = true;
+            recommendationsListEl.innerHTML = '';
         }
 
-        // Disclaimer
-        indicatorsEl.insertAdjacentHTML('beforeend', `
-            <p class="result-disclaimer">
-                This is a heuristic assessment, not proof that a URL is safe
-                or malicious. HTTPS alone does not guarantee safety.
-            </p>
-        `);
-
-        // Show threat map section
         threatMapSectionEl.hidden = false;
         showThreatMapPlaceholder();
+
+        if (retryBtn) retryBtn.hidden = true;
+        if (scannerEmptyEl) scannerEmptyEl.hidden = true;
+    }
+
+    function renderRiskRing(score, level, levelClass) {
+        if (!riskRingSectionEl) return;
+
+        const clampedScore = Math.min(100, Math.max(0, score));
+        const radius = 52;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference * (1 - clampedScore / 100);
+
+        riskRingSectionEl.hidden = false;
+
+        if (riskRingProgressEl) {
+            riskRingProgressEl.style.strokeDasharray = circumference;
+            riskRingProgressEl.style.strokeDashoffset = offset;
+            riskRingProgressEl.className = 'risk-ring-progress level-' + levelClass;
+        }
+
+        if (riskRingScoreEl) {
+            riskRingScoreEl.textContent = clampedScore;
+        }
+
+        if (riskRingLevelEl) {
+            riskRingLevelEl.textContent = formatRiskLevel(level);
+            riskRingLevelEl.className = 'risk-ring-level level-' + levelClass;
+        }
     }
 
     function buildAnatomyPills(parsed) {
@@ -214,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hash: '#'
         };
 
-        componentOrder.forEach((key, index) => {
+        componentOrder.forEach((key) => {
             const value = parsed[key];
             if (!value && key !== 'protocol' && key !== 'domain') return;
 
@@ -228,7 +374,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pill.setAttribute('tabindex', '0');
             pill.title = getComponentTitle(key);
 
-            // Add separator before (except protocol)
             if (key !== 'protocol' && separators[key]) {
                 const sep = document.createElement('span');
                 sep.className = 'pill-separator';
@@ -246,10 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
             val.textContent = key === 'query' ? value.substring(1) : (key === 'hash' ? value.substring(1) : value);
             pill.appendChild(val);
 
-            // Click handler
             pill.addEventListener('click', () => selectComponent(key));
 
-            // Keyboard handler
             pill.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -263,7 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
             anatomyPillsEl.appendChild(pill);
         });
 
-        // Set initial ARIA state
         const firstPill = anatomyPillsEl.querySelector('.anatomy-pill');
         if (firstPill) {
             firstPill.setAttribute('tabindex', '0');
@@ -289,14 +431,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         selectedComponentKey = key;
 
-        // Update pill selection states
         anatomyPillsEl.querySelectorAll('.anatomy-pill').forEach(pill => {
             const isSelected = pill.dataset.component === key;
             pill.setAttribute('aria-selected', isSelected);
             pill.classList.toggle('selected', isSelected);
         });
 
-        // Update threat map
         renderThreatMap(key, value);
     }
 
@@ -313,8 +453,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderThreatMap(componentKey, componentValue) {
         threatMapPlaceholderEl.hidden = true;
         threatMapContentEl.hidden = false;
+        threatMapContentEl.innerHTML = '';
 
-        // Find matching indicators from API response
         const matchedIndicators = currentIndicators.filter(ind => {
             const detail = (ind.detail || '').toLowerCase();
             const name = (ind.name || '').toLowerCase();
@@ -322,7 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return detail.includes(comp) || name.includes(comp);
         });
 
-        // Find matching suspicious components from client-side analysis
         const suspicious = currentParsed ? analyzeUrlComponents(currentParsed) : [];
         const matchedSuspicious = suspicious.filter(s =>
             s.component.toLowerCase() === componentKey.toLowerCase() ||
@@ -334,7 +473,6 @@ document.addEventListener('DOMContentLoaded', () => {
             (componentKey === 'protocol' && s.component === 'Protocol')
         );
 
-        // Find score contribution from breakdown
         let scoreContribution = null;
         if (currentBreakdown && currentBreakdown.contributions) {
             scoreContribution = currentBreakdown.contributions.find(c => {
@@ -355,106 +493,98 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const severityColors = {
-            high: '#f87171',
+            high: '#FF496C',
             medium: '#fbbf24',
             low: '#4ade80',
             unknown: '#94a3b8'
         };
 
-        let html = '';
+        const header = createEl('div', 'threat-map-header');
+        header.appendChild(createEl('div', 'threat-map-component-type', componentLabels[componentKey] || componentKey));
+        header.appendChild(createEl('div', 'threat-map-component-value', componentValue));
+        threatMapContentEl.appendChild(header);
 
-        // Component header
-        html += '<div class="threat-map-header">';
-        html += '<div class="threat-map-component-type">' + escapeHtml(componentLabels[componentKey] || componentKey) + '</div>';
-        html += '<div class="threat-map-component-value">' + escapeHtml(componentValue) + '</div>';
-        html += '</div>';
-
-        // Severity from matched indicators/suspicious
         const maxSeverity = getMaxSeverity([
             ...matchedIndicators.map(i => i.severity),
             ...matchedSuspicious.map(s => s.risk.toLowerCase())
         ]);
         if (maxSeverity !== 'unknown') {
             const color = severityColors[maxSeverity] || severityColors.unknown;
-            html += '<div class="threat-map-severity" style="--severity-color: ' + color + ';">';
-            html += '<span class="severity-label">Severity</span>';
-            html += '<span class="severity-value" style="color: ' + color + ';">' + escapeHtml(maxSeverity.charAt(0).toUpperCase() + maxSeverity.slice(1)) + '</span>';
-            html += '</div>';
+            const sevEl = createEl('div', 'threat-map-severity');
+            sevEl.style.setProperty('--severity-color', color);
+            sevEl.appendChild(createEl('span', 'severity-label', 'Severity'));
+            const sevValue = createEl('span', 'severity-value', maxSeverity.charAt(0).toUpperCase() + maxSeverity.slice(1));
+            sevValue.style.color = color;
+            sevEl.appendChild(sevValue);
+            threatMapContentEl.appendChild(sevEl);
         }
 
-        // Matched API indicators
         if (matchedIndicators.length > 0) {
-            html += '<div class="threat-map-section">';
-            html += '<h4>Matched Risk Indicators</h4>';
+            const section = createEl('div', 'threat-map-section');
+            section.appendChild(createEl('h4', null, 'Matched Risk Indicators'));
             matchedIndicators.forEach(ind => {
                 const sevColor = severityColors[ind.severity] || severityColors.unknown;
-                html += '<div class="threat-map-indicator" style="--indicator-color: ' + sevColor + ';">';
-                html += '<div class="indicator-header">';
-                html += '<strong>' + escapeHtml(ind.name) + '</strong>';
-                html += '<span class="indicator-points" style="color: ' + sevColor + ';">+' + (ind.points || 0) + ' pts</span>';
-                html += '</div>';
-                if (ind.detail) {
-                    html += '<p class="indicator-detail">' + escapeHtml(ind.detail) + '</p>';
-                }
+                const card = createEl('div', 'threat-map-indicator');
+                card.style.setProperty('--indicator-color', sevColor);
+                const headerRow = createEl('div', 'indicator-header');
+                headerRow.appendChild(createEl('strong', null, ind.name));
+                const pointsEl = createEl('span', 'indicator-points', '+' + (ind.points || 0) + ' pts');
+                pointsEl.style.color = sevColor;
+                headerRow.appendChild(pointsEl);
+                card.appendChild(headerRow);
+                if (ind.detail) card.appendChild(createEl('p', 'indicator-detail', ind.detail));
                 if (ind.evidence) {
-                    html += '<p class="indicator-evidence">Evidence: ' + escapeHtml(ind.evidence) + '</p>';
+                    const evP = createEl('p', 'indicator-evidence');
+                    evP.textContent = 'Evidence: ' + ind.evidence;
+                    card.appendChild(evP);
                 }
-                if (ind.explanation) {
-                    html += '<p class="indicator-explanation">' + escapeHtml(ind.explanation) + '</p>';
-                }
-                html += '</div>';
+                if (ind.explanation) card.appendChild(createEl('p', 'indicator-explanation', ind.explanation));
+                section.appendChild(card);
             });
-            html += '</div>';
+            threatMapContentEl.appendChild(section);
         }
 
-        // Matched suspicious components
         if (matchedSuspicious.length > 0) {
-            html += '<div class="threat-map-section">';
-            html += '<h4>Structural Anomalies</h4>';
+            const section = createEl('div', 'threat-map-section');
+            section.appendChild(createEl('h4', null, 'Structural Anomalies'));
             matchedSuspicious.forEach(s => {
                 const sevColor = severityColors[s.risk.toLowerCase()] || severityColors.unknown;
-                html += '<div class="threat-map-indicator" style="--indicator-color: ' + sevColor + ';">';
-                html += '<div class="indicator-header">';
-                html += '<strong>' + escapeHtml(s.component) + '</strong>';
-                html += '<span class="risk-badge risk-' + s.risk.toLowerCase() + '">' + escapeHtml(s.risk) + '</span>';
-                html += '</div>';
-                html += '<p class="indicator-detail">' + escapeHtml(s.reason) + '</p>';
-                html += '</div>';
+                const card = createEl('div', 'threat-map-indicator');
+                card.style.setProperty('--indicator-color', sevColor);
+                const headerRow = createEl('div', 'indicator-header');
+                headerRow.appendChild(createEl('strong', null, s.component));
+                headerRow.appendChild(createEl('span', 'risk-badge risk-' + s.risk.toLowerCase(), s.risk));
+                card.appendChild(headerRow);
+                card.appendChild(createEl('p', 'indicator-detail', s.reason));
+                section.appendChild(card);
             });
-            html += '</div>';
+            threatMapContentEl.appendChild(section);
         }
 
-        // Score contribution
         if (scoreContribution) {
             const sevColor = severityColors[scoreContribution.severity] || severityColors.unknown;
-            html += '<div class="threat-map-section">';
-            html += '<h4>Score Contribution</h4>';
-            html += '<div class="threat-map-indicator" style="--indicator-color: ' + sevColor + ';">';
-            html += '<div class="indicator-header">';
-            html += '<strong>' + escapeHtml(scoreContribution.name) + '</strong>';
-            html += '<span class="indicator-points" style="color: ' + sevColor + ';">+' + (scoreContribution.points || 0) + ' pts</span>';
-            html += '</div>';
-            if (scoreContribution.explanation) {
-                html += '<p class="indicator-explanation">' + escapeHtml(scoreContribution.explanation) + '</p>';
-            }
-            html += '</div>';
-            html += '</div>';
+            const section = createEl('div', 'threat-map-section');
+            section.appendChild(createEl('h4', null, 'Score Contribution'));
+            const card = createEl('div', 'threat-map-indicator');
+            card.style.setProperty('--indicator-color', sevColor);
+            const headerRow = createEl('div', 'indicator-header');
+            headerRow.appendChild(createEl('strong', null, scoreContribution.name));
+            const pointsEl = createEl('span', 'indicator-points', '+' + (scoreContribution.points || 0) + ' pts');
+            pointsEl.style.color = sevColor;
+            headerRow.appendChild(pointsEl);
+            card.appendChild(headerRow);
+            if (scoreContribution.explanation) card.appendChild(createEl('p', 'indicator-explanation', scoreContribution.explanation));
+            section.appendChild(card);
+            threatMapContentEl.appendChild(section);
         }
 
-        // No matches
         if (matchedIndicators.length === 0 && matchedSuspicious.length === 0 && !scoreContribution) {
-            html += '<div class="threat-map-empty">';
-            html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">';
-            html += '<circle cx="12" cy="12" r="10"/>';
-            html += '<path d="M12 16v-4"/>';
-            html += '<path d="M12 8h.01"/>';
-            html += '</svg>';
-            html += '<p>No specific indicator matched this component</p>';
-            html += '<p class="threat-map-hint">This component was analyzed but no risk indicators were directly associated with it.</p>';
-            html += '</div>';
+            const empty = createEl('div', 'threat-map-empty');
+            empty.appendChild(iconSvg(ICON_PATHS.info));
+            empty.appendChild(createEl('p', null, 'No specific indicator matched this component'));
+            empty.appendChild(createEl('p', 'threat-map-hint', 'This component was analyzed but no risk indicators were directly associated with it.'));
+            threatMapContentEl.appendChild(empty);
         }
-
-        threatMapContentEl.innerHTML = html;
     }
 
     function getMaxSeverity(severities) {
@@ -489,59 +619,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildSuspiciousComponents(suspicious) {
+        const wrapper = createEl('div');
+
         if (!suspicious || suspicious.length === 0) {
-            return `
-                <div class="no-suspicious">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    <p>No suspicious components detected in URL structure</p>
-                </div>
-            `;
+            const noSusp = createEl('div', 'no-suspicious');
+            noSusp.appendChild(iconSvg(ICON_PATHS.check));
+            noSusp.appendChild(createEl('p', null, 'No suspicious components detected in URL structure'));
+            wrapper.appendChild(noSusp);
+            return wrapper;
         }
 
-        return `
-            <h3>Suspicious Components</h3>
-            <div class="suspicious-grid">
-                ${suspicious.map(s => `
-                    <article class="suspicious-card risk-${s.risk.toLowerCase()}">
-                        <div class="suspicious-header">
-                            <span class="suspicious-component">${escapeHtml(s.component)}</span>
-                            <span class="risk-badge risk-${s.risk.toLowerCase()}">${s.risk}</span>
-                        </div>
-                        <div class="suspicious-value">${escapeHtml(s.value)}</div>
-                        <p class="suspicious-reason">${escapeHtml(s.reason)}</p>
-                    </article>
-                `).join('')}
-            </div>
-        `;
+        wrapper.appendChild(createEl('h3', null, 'Suspicious Components'));
+        const grid = createEl('div', 'suspicious-grid');
+        suspicious.forEach(s => {
+            const card = createEl('article', 'suspicious-card risk-' + s.risk.toLowerCase());
+            const headerRow = createEl('div', 'suspicious-header');
+            headerRow.appendChild(createEl('span', 'suspicious-component', s.component));
+            headerRow.appendChild(createEl('span', 'risk-badge risk-' + s.risk.toLowerCase(), s.risk));
+            card.appendChild(headerRow);
+            card.appendChild(createEl('div', 'suspicious-value', s.value));
+            card.appendChild(createEl('p', 'suspicious-reason', s.reason));
+            grid.appendChild(card);
+        });
+        wrapper.appendChild(grid);
+        return wrapper;
     }
 
     function buildHttpsNote(isHttps) {
+        const wrapper = createEl('div');
+
         if (isHttps) {
-            return `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="2" width="20" height="20" rx="2"/>
-                    <path d="M8 12l2 2 4-4"/>
-                </svg>
-                <div class="https-note-content">
-                    <strong>HTTPS Enabled</strong>
-                    <p>This site uses HTTPS encryption. While this protects data in transit, it does not guarantee the site is legitimate. Attackers can obtain valid SSL certificates for phishing domains.</p>
-                </div>
-            `;
+            wrapper.appendChild(iconSvg('<rect x="2" y="2" width="20" height="20" rx="2"/><path d="M8 12l2 2 4-4"/>'));
+            const content = createEl('div', 'https-note-content');
+            content.appendChild(createEl('strong', null, 'HTTPS Enabled'));
+            content.appendChild(createEl('p', null, 'This site uses HTTPS encryption. While this protects data in transit, it does not guarantee the site is legitimate. Attackers can obtain valid SSL certificates for phishing domains.'));
+            wrapper.appendChild(content);
+        } else {
+            wrapper.appendChild(iconSvg('<path d="M12 22v-5"/><path d="M9 12l2 2 4-4"/><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M12 17v5"/>'));
+            const content = createEl('div', 'https-note-content');
+            content.appendChild(createEl('strong', null, 'Not Using HTTPS'));
+            content.appendChild(createEl('p', null, 'This URL uses HTTP instead of HTTPS. Data sent to this site is not encrypted and can be intercepted. Never enter sensitive information on HTTP sites.'));
+            wrapper.appendChild(content);
         }
-        return `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 22v-5"/>
-                <path d="M9 12l2 2 4-4"/>
-                <rect x="2" y="2" width="20" height="20" rx="2"/>
-                <path d="M12 17v5"/>
-            </svg>
-            <div class="https-note-content">
-                <strong>Not Using HTTPS</strong>
-                <p>This URL uses HTTP instead of HTTPS. Data sent to this site is not encrypted and can be intercepted. Never enter sensitive information on HTTP sites.</p>
-            </div>
-        `;
+        return wrapper;
     }
 
     function formatScoreBreakdown(breakdown) {
@@ -553,61 +673,60 @@ document.addEventListener('DOMContentLoaded', () => {
             ? breakdown.contributions
             : [];
 
-        const maxPoints = Math.max(cap, 1);
-        const contributionBars = contributions.map(item => {
-            const name = escapeHtml(item.name || 'Indicator');
-            const severity = escapeHtml(item.severity || 'unknown');
-            const points = Number(item.points) || 0;
-            const explanation = escapeHtml(item.explanation || '');
-            const widthPercent = Math.min(100, (points / maxPoints) * 100);
+        const section = createEl('section', 'score-breakdown');
+        section.setAttribute('aria-labelledby', 'score-breakdown-title');
+        const title = createEl('h4', null, 'Score Breakdown');
+        title.id = 'score-breakdown-title';
+        section.appendChild(title);
 
-            return `
-                <li class="contribution-item">
-                    <div class="contribution-header">
-                        <span class="contribution-name">${name}</span>
-                        <span class="contribution-severity severity-${escapeHtml(severity)}">${severity}</span>
-                        <span class="contribution-points">+${points}</span>
-                    </div>
-                    <div class="contribution-bar" role="img" aria-label="${name} contributes ${points} points">
-                        <div class="contribution-fill severity-fill-${escapeHtml(severity)}" style="width: ${widthPercent}%;"></div>
-                    </div>
-                    ${explanation ? '<p class="contribution-explanation">' + explanation + '</p>' : ''}
-                </li>
-            `;
-        }).join('');
+        const summary = createEl('div', 'score-summary');
+        [
+            ['Raw total', rawTotal],
+            ['Score cap', cap],
+            ['Final score', finalScore]
+        ].forEach(([label, value]) => {
+            const row = createEl('div', 'score-summary-row');
+            row.appendChild(createEl('span', 'score-summary-label', label));
+            row.appendChild(createEl('span', 'score-summary-value', String(value)));
+            summary.appendChild(row);
+        });
+        if (capped) {
+            summary.appendChild(createEl('p', 'score-capped-note', 'Raw total exceeded the cap of ' + cap + '; final score is capped at ' + cap + '.'));
+        }
+        section.appendChild(summary);
 
-        return `
-            <section class="score-breakdown" aria-labelledby="score-breakdown-title">
-                <h4 id="score-breakdown-title">Score Breakdown</h4>
-                <div class="score-summary">
-                    <div class="score-summary-row">
-                        <span class="score-summary-label">Raw total</span>
-                        <span class="score-summary-value">${rawTotal}</span>
-                    </div>
-                    <div class="score-summary-row">
-                        <span class="score-summary-label">Score cap</span>
-                        <span class="score-summary-value">${cap}</span>
-                    </div>
-                    <div class="score-summary-row">
-                        <span class="score-summary-label">Final score</span>
-                        <span class="score-summary-value">${finalScore}</span>
-                    </div>
-                    ${capped ? '<p class="score-capped-note">Raw total exceeded the cap of ' + cap + '; final score is capped at ' + cap + '.</p>' : ''}
-                </div>
-                <ul class="contribution-list">
-                    ${contributionBars || '<li class="contribution-empty">No indicators contributed to the score.</li>'}
-                </ul>
-            </section>
-        `;
-    }
+        const list = createEl('ul', 'contribution-list');
+        if (contributions.length === 0) {
+            list.appendChild(createEl('li', 'contribution-empty', 'No indicators contributed to the score.'));
+        } else {
+            const maxPoints = Math.max(cap, 1);
+            contributions.forEach(item => {
+                const name = item.name || 'Indicator';
+                const severity = item.severity || 'unknown';
+                const points = Number(item.points) || 0;
+                const explanation = item.explanation || '';
+                const widthPercent = Math.min(100, (points / maxPoints) * 100);
 
-    function escapeHtml(value) {
-        return String(value).replace(/[&<>"']/g, character => ({
-            '&': '&',
-            '<': '<',
-            '>': '>',
-            '"': '"',
-            "'": "'"
-        })[character]);
+                const li = createEl('li', 'contribution-item');
+                const headerRow = createEl('div', 'contribution-header');
+                headerRow.appendChild(createEl('span', 'contribution-name', name));
+                headerRow.appendChild(createEl('span', 'contribution-severity severity-' + severity, severity));
+                headerRow.appendChild(createEl('span', 'contribution-points', '+' + points));
+                li.appendChild(headerRow);
+
+                const bar = createEl('div', 'contribution-bar');
+                bar.setAttribute('role', 'img');
+                bar.setAttribute('aria-label', name + ' contributes ' + points + ' points');
+                const fill = createEl('div', 'contribution-fill severity-fill-' + severity);
+                fill.style.width = widthPercent + '%';
+                bar.appendChild(fill);
+                li.appendChild(bar);
+
+                if (explanation) li.appendChild(createEl('p', 'contribution-explanation', explanation));
+                list.appendChild(li);
+            });
+        }
+        section.appendChild(list);
+        return section;
     }
 });

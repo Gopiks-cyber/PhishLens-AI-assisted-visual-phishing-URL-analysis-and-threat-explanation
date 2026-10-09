@@ -212,6 +212,45 @@ class TestAnalyzeEndpoint:
         assert breakdown["contributions"] == []
         assert breakdown["capped"] is False
 
+    def test_xss_payload_url_returned_as_inert_data(self, client):
+        """A URL containing an XSS payload must round-trip as inert string data.
+
+        The backend never executes or strips user input; it returns it as a
+        JSON string. The frontend is responsible for rendering it safely
+        (via textContent), so the exact payload must be preserved.
+        """
+        payload = "http://example.com/<script>alert('xss')</script>?q=\"><img src=x>"
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": payload}),
+            content_type="application/json"
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        # Payload preserved exactly as inert data (not executed, not sanitized).
+        assert data["url"] == payload
+        assert data["risk_level"] in ("minimal", "low", "medium", "high", "error")
+        assert isinstance(data["risk_score"], int)
+        assert 0 <= data["risk_score"] <= 100
+
+    def test_xss_payload_in_indicator_evidence_is_inert(self, client):
+        """Indicator evidence derived from a payload URL stays inert string data."""
+        payload = "http://192.168.1.1/<script>alert(1)</script>"
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": payload}),
+            content_type="application/json"
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        names = [i["name"] for i in data["indicators"]]
+        assert "IP Address Host" in names
+        for ind in data["indicators"]:
+            # Every field is a plain string, safe to render via textContent.
+            assert isinstance(ind.get("evidence", ""), str)
+            assert isinstance(ind.get("detail", ""), str)
+            assert isinstance(ind.get("explanation", ""), str)
+
 
 class TestHealthEndpoint:
     def test_health_check(self, client):
