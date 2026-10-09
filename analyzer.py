@@ -19,6 +19,24 @@ URL_SHORTENERS = [
     "adf.ly", "shorte.st", "cutt.ly", "rebrand.ly", "short.io", "v.gd"
 ]
 
+SEVERITY_WEIGHTS = {"high": 30, "medium": 15, "low": 5}
+MAX_SCORE = 100
+
+INDICATOR_EXPLANATIONS = {
+    "IP Address Host": "The host is a raw IP address instead of a registered domain name. Legitimate public services almost always use domain names.",
+    "Suspicious TLD": "The domain uses a top-level domain that is statistically over-represented in phishing campaigns. This is a heuristic signal, not proof of malice.",
+    "Brand Impersonation": "A known brand name appears in a subdomain while the registered domain is different. This pattern is commonly used to make URLs look official.",
+    "Excessive Subdomains": "The URL contains many subdomain levels, which can be used to obscure the true destination or mimic a legitimate path.",
+    "URL Shortener": "The URL uses a known shortening service, which hides the final destination until the link is expanded.",
+    "Credential Embedding": "The URL contains an @ symbol in the authority component, which can embed userinfo and mislead users about the true host.",
+    "Hyphenated Brand Domain": "The domain contains a hyphenated brand name, a common typosquatting technique to imitate a legitimate brand.",
+    "Long Random Subdomain": "The subdomain is long and appears randomly generated, a pattern sometimes used in phishing kits to create unique lure URLs.",
+    "Sensitive Path": "The URL path contains a keyword often associated with login or account flows. This is observable in the URL, not a conclusion about intent.",
+    "Excessive Parameters": "The URL carries many query parameters, which can be used to pass tracking or redirect data.",
+    "Encoded Characters": "The URL path contains many percent-encoded characters, which can be used to obfuscate the true path.",
+    "Dangerous Scheme": "The URL uses a scheme other than http/https that can execute code or embed data directly."
+}
+
 
 def validate_url(url: str) -> tuple[bool, str | None]:
     """Validate URL format. Returns (is_valid, error_message)."""
@@ -56,11 +74,13 @@ def extract_indicators(url: str, parsed) -> list[dict]:
     
     # Check for IP address as host
     ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-    if re.match(ip_pattern, netloc.split(':')[0]):
+    host_part = netloc.split(':')[0]
+    if re.match(ip_pattern, host_part):
         indicators.append({
             "name": "IP Address Host",
             "detail": "URL uses an IP address instead of a domain name",
-            "severity": "high"
+            "severity": "high",
+            "evidence": f"host={host_part}"
         })
     
     # Check for suspicious TLD
@@ -69,7 +89,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Suspicious TLD",
             "detail": f"Domain uses high-risk TLD: .{tld}",
-            "severity": "medium"
+            "severity": "medium",
+            "evidence": f"tld=.{tld}"
         })
     
     # Check for brand impersonation in subdomain
@@ -81,7 +102,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
                 indicators.append({
                     "name": "Brand Impersonation",
                     "detail": f"Subdomain contains brand name '{brand}' but domain is not official",
-                    "severity": "high"
+                    "severity": "high",
+                    "evidence": f"subdomain contains '{brand}'"
                 })
                 break
     
@@ -91,7 +113,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Excessive Subdomains",
             "detail": f"URL has {subdomain_count} subdomain levels",
-            "severity": "medium"
+            "severity": "medium",
+            "evidence": f"subdomain_levels={subdomain_count}"
         })
     
     # Check for URL shortener
@@ -100,7 +123,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
             indicators.append({
                 "name": "URL Shortener",
                 "detail": f"URL uses known shortening service: {shortener}",
-                "severity": "medium"
+                "severity": "medium",
+                "evidence": f"host contains '{shortener}'"
             })
             break
     
@@ -109,7 +133,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Credential Embedding",
             "detail": "URL contains @ symbol which may embed credentials",
-            "severity": "high"
+            "severity": "high",
+            "evidence": "authority contains '@'"
         })
     
     # Check for hyphenated brand-like domains
@@ -118,7 +143,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
             indicators.append({
                 "name": "Hyphenated Brand Domain",
                 "detail": f"Domain contains hyphenated brand name '{brand}'",
-                "severity": "medium"
+                "severity": "medium",
+                "evidence": f"domain contains '{brand}-' or '-{brand}'"
             })
             break
     
@@ -128,7 +154,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Long Random Subdomain",
             "detail": "Subdomain appears to be randomly generated",
-            "severity": "low"
+            "severity": "low",
+            "evidence": f"subdomain length={len(subdomain_part)}"
         })
     
     # Check for suspicious path patterns
@@ -138,7 +165,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
             indicators.append({
                 "name": "Sensitive Path",
                 "detail": f"URL path contains sensitive keyword: {sus_path}",
-                "severity": "low"
+                "severity": "low",
+                "evidence": f"path contains '/{sus_path}'"
             })
             break
     
@@ -147,7 +175,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Excessive Parameters",
             "detail": "URL contains many query parameters",
-            "severity": "low"
+            "severity": "low",
+            "evidence": f"query_parameters={query.count('&') + 1}"
         })
     
     # Check for hex/encoded characters in path
@@ -155,7 +184,8 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Encoded Characters",
             "detail": "URL path contains excessive percent-encoded characters",
-            "severity": "low"
+            "severity": "low",
+            "evidence": f"encoded_characters={path.count('%')}"
         })
     
     # Check for data URIs or javascript
@@ -163,17 +193,53 @@ def extract_indicators(url: str, parsed) -> list[dict]:
         indicators.append({
             "name": "Dangerous Scheme",
             "detail": f"URL uses potentially dangerous scheme: {parsed.scheme}",
-            "severity": "high"
+            "severity": "high",
+            "evidence": f"scheme={parsed.scheme}"
         })
-    
+
+    for ind in indicators:
+        ind["points"] = SEVERITY_WEIGHTS.get(ind["severity"], 0)
+        ind["explanation"] = INDICATOR_EXPLANATIONS.get(ind["name"], "Heuristic pattern detected in the URL.")
+        if "evidence" not in ind:
+            ind["evidence"] = ind["detail"]
+
     return indicators
 
 
 def calculate_risk_score(indicators: list[dict]) -> int:
     """Calculate risk score 0-100 based on indicators."""
-    severity_weights = {"high": 30, "medium": 15, "low": 5}
-    score = sum(severity_weights.get(ind["severity"], 0) for ind in indicators)
-    return min(score, 100)
+    breakdown = calculate_score_breakdown(indicators)
+    return breakdown["final_score"]
+
+
+def calculate_score_breakdown(indicators: list[dict]) -> dict:
+    """Calculate explainable risk score with per-indicator contributions.
+
+    Returns a dict with:
+      - raw_total: sum of all indicator points before any cap
+      - cap: maximum allowed score
+      - final_score: min(raw_total, cap)
+      - capped: whether the cap was applied
+      - contributions: list of per-indicator {name, severity, points, explanation}
+    """
+    contributions = [
+        {
+            "name": ind.get("name", "Unknown"),
+            "severity": ind.get("severity", "unknown"),
+            "points": ind.get("points", SEVERITY_WEIGHTS.get(ind.get("severity"), 0)),
+            "explanation": ind.get("explanation", "Heuristic pattern detected in the URL.")
+        }
+        for ind in indicators
+    ]
+    raw_total = sum(c["points"] for c in contributions)
+    final_score = min(raw_total, MAX_SCORE)
+    return {
+        "raw_total": raw_total,
+        "cap": MAX_SCORE,
+        "final_score": final_score,
+        "capped": raw_total > MAX_SCORE,
+        "contributions": contributions
+    }
 
 
 def get_risk_level(score: int) -> str:
@@ -232,6 +298,13 @@ def analyze_url(url: str) -> dict:
             "risk_level": "error",
             "indicators": [],
             "recommendations": [f"Invalid input: {error}"],
+            "score_breakdown": {
+                "raw_total": 0,
+                "cap": MAX_SCORE,
+                "final_score": 0,
+                "capped": False,
+                "contributions": []
+            },
             "error": error
         }
     
@@ -240,11 +313,13 @@ def analyze_url(url: str) -> dict:
     risk_score = calculate_risk_score(indicators)
     risk_level = get_risk_level(risk_score)
     recommendations = generate_recommendations(indicators, risk_level)
-    
+    score_breakdown = calculate_score_breakdown(indicators)
+
     return {
         "url": url,
         "risk_score": risk_score,
         "risk_level": risk_level,
         "indicators": indicators,
-        "recommendations": recommendations
+        "recommendations": recommendations,
+        "score_breakdown": score_breakdown
     }

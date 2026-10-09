@@ -129,6 +129,89 @@ class TestAnalyzeEndpoint:
             assert "severity" in ind
             assert ind["severity"] in ("high", "medium", "low")
 
+    def test_response_includes_score_breakdown(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://example.com"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        assert "score_breakdown" in data
+        breakdown = data["score_breakdown"]
+        assert "raw_total" in breakdown
+        assert "cap" in breakdown
+        assert "final_score" in breakdown
+        assert "capped" in breakdown
+        assert "contributions" in breakdown
+        assert isinstance(breakdown["contributions"], list)
+
+    def test_score_breakdown_reconciles_with_risk_score(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://paypal.phisher.tk/login"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        breakdown = data["score_breakdown"]
+        contribution_sum = sum(c["points"] for c in breakdown["contributions"])
+        assert contribution_sum == breakdown["raw_total"]
+        assert breakdown["final_score"] == min(breakdown["raw_total"], breakdown["cap"])
+        assert breakdown["final_score"] == data["risk_score"]
+
+    def test_score_breakdown_bounds(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://paypal.phisher.tk/login"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        breakdown = data["score_breakdown"]
+        assert 0 <= breakdown["raw_total"]
+        assert breakdown["cap"] == 100
+        assert 0 <= breakdown["final_score"] <= 100
+        assert 0 <= data["risk_score"] <= 100
+
+    def test_score_breakdown_contributions_structure(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://paypal.phisher.tk/login"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        breakdown = data["score_breakdown"]
+        for contribution in breakdown["contributions"]:
+            assert "name" in contribution
+            assert "severity" in contribution
+            assert "points" in contribution
+            assert "explanation" in contribution
+            assert contribution["severity"] in ("high", "medium", "low")
+            assert isinstance(contribution["points"], int)
+            assert contribution["points"] > 0
+
+    def test_error_response_includes_score_breakdown(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "not-a-url"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        assert "score_breakdown" in data
+        assert data["score_breakdown"]["final_score"] == 0
+        assert data["score_breakdown"]["contributions"] == []
+
+    def test_clean_url_score_breakdown_empty(self, client):
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://example.com/about"}),
+            content_type="application/json"
+        )
+        data = response.get_json()
+        breakdown = data["score_breakdown"]
+        assert breakdown["raw_total"] == 0
+        assert breakdown["final_score"] == 0
+        assert breakdown["contributions"] == []
+        assert breakdown["capped"] is False
+
 
 class TestHealthEndpoint:
     def test_health_check(self, client):
