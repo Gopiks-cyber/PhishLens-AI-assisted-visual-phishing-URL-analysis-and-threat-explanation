@@ -1,7 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from analyzer import analyze_url
 
 app = Flask(__name__)
+@app.route("/")
+def index():
+    """Serve the PhishLens frontend."""
+    return render_template("index.html")
 
 
 @app.route("/api/analyze", methods=["POST"])

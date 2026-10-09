@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishLens - AI Phishing Detection</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                    <path d="M12 18V6"/>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                </svg>
+                <h1>PhishLens</h1>
+            </div>
+            <p class="tagline">AI-assisted visual phishing URL analysis & threat explanation</p>
+        </header>
+
+        <main>
+            <form class="analyze-form" id="analyzeForm">
+                <div class="input-group">
+                    <label for="urlInput" class="visually-hidden">Suspicious URL</label>
+                    <input 
+                        type="url" 
+                        id="urlInput" 
+                        name="url" 
+                        placeholder="Paste suspicious URL here" 
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+
+                <div class="input-group">
+                    <label for="screenshotInput" class="visually-hidden">Screenshot upload</label>
+                    <div class="file-upload">
+                        <input 
+                            type="file" 
+                            id="screenshotInput" 
+                            name="screenshot" 
+                            accept="image/*"
+                        >
+                        <div class="file-upload-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span>Upload screenshot (optional)</span>
+                        </div>
+                    </div>
+                    <div class="ocr-status" id="ocrStatus" hidden></div>
+                </div>
+
+                <button type="submit" class="analyze-btn">
+                    <span class="btn-text">Analyze</span>
+                    <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </button>
+            </form>
+
+            <div class="loading-overlay" id="loadingOverlay" hidden>
+                <div class="loading-orb">
+                    <div class="orb-core"></div>
+                    <div class="orb-ring"></div>
+                    <div class="orb-ring" style="--delay: 0.15s;"></div>
+                    <div class="orb-ring" style="--delay: 0.3s;"></div>
+                </div>
+                <p class="loading-text">Scanning URL<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
+            </div>
+
+            <div class="results" id="results" hidden></div>
+        </main>
+
+        <footer>
+            <p>Powered by AI • Built for security researchers</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
