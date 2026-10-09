@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analysis Results - PhishLens</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -179,16 +180,18 @@
             const color = getGaugeColor(score);
             const levelColor = getLevelColor(level);
 
-            document.getElementById('riskScore').textContent = score;
+            animateScore(0, score, 1500, (val) => {
+                document.getElementById('riskScore').textContent = Math.round(val);
+            });
             document.getElementById('riskLevel').textContent = level;
             document.getElementById('riskLevel').style.color = levelColor;
             document.getElementById('riskScore').style.color = color;
 
-            new Chart(ctx, {
+            const chart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [{
-                        data: [score, 100 - score],
+                        data: [0, 100],
                         backgroundColor: [color, 'rgba(30, 41, 59, 0.5)'],
                         borderWidth: 0,
                         circumference: 180,
@@ -203,7 +206,16 @@
                         animateRotate: true,
                         animateScale: true,
                         duration: 1500,
-                        easing: 'easeOutCubic'
+                        easing: 'easeOutCubic',
+                        onProgress: (animation) => {
+                            const progress = animation.currentStep / animation.numSteps;
+                            const currentScore = Math.round(score * progress);
+                            chart.data.datasets[0].data = [currentScore, 100 - currentScore];
+                        },
+                        onComplete: () => {
+                            chart.data.datasets[0].data = [score, 100 - score];
+                            chart.update('none');
+                        }
                     },
                     plugins: {
                         legend: { display: false },
@@ -212,6 +224,17 @@
                     cutout: '75%'
                 }
             });
+        }
+
+        function animateScore(from, to, duration, callback) {
+            const start = performance.now();
+            function step(now) {
+                const progress = Math.min((now - start) / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                callback(from + (to - from) * eased);
+                if (progress < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
         }
 
         document.getElementById('copyUrl').addEventListener('click', () => {

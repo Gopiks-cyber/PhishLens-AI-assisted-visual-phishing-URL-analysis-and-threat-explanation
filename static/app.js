@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlInput = document.getElementById('urlInput');
     const screenshotInput = document.getElementById('screenshotInput');
     const resultsDiv = document.getElementById('results');
+    const loadingOverlay = document.getElementById('loadingOverlay');
     const analyzeBtn = form.querySelector('.analyze-btn');
     const btnText = analyzeBtn.querySelector('.btn-text');
 
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         analyzeBtn.disabled = true;
         btnText.textContent = 'Analyzing...';
+        loadingOverlay.hidden = false;
         resultsDiv.hidden = true;
         resultsDiv.innerHTML = '';
 
@@ -35,9 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Analysis failed');
             }
 
+            loadingOverlay.hidden = true;
             resultsDiv.hidden = false;
             resultsDiv.innerHTML = formatResults(data);
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (err) {
+            loadingOverlay.hidden = true;
             resultsDiv.hidden = false;
             resultsDiv.innerHTML = `
                 <div class="result-error">
