@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Results - PhishLens</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container result-container">
+        <header class="result-header">
+            <a href="/" class="back-btn" aria-label="Back to analyze">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                <span>Analyze another</span>
+            </a>
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                    <path d="M12 18V6"/>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                </svg>
+                <h1>PhishLens</h1>
+            </div>
+        </header>
+
+        <main>
+            <div class="url-display">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                <span id="resultUrl">http://example.com</span>
+                <button class="copy-btn" id="copyUrl" aria-label="Copy URL">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                </button>
+            </div>
+
+            <section class="gauge-section" aria-labelledby="gauge-title">
+                <h2 id="gauge-title" class="visually-hidden">Risk Score Gauge</h2>
+                <div class="gauge-wrapper">
+                    <canvas id="riskGauge" width="280" height="280" aria-label="Risk score gauge showing 65 out of 100"></canvas>
+                    <div class="gauge-center">
+                        <div class="risk-score" id="riskScore">65</div>
+                        <div class="risk-level" id="riskLevel">High</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="flags-section" aria-labelledby="flags-title">
+                <h2 id="flags-title">Red Flags Detected</h2>
+                <div class="flags-grid" id="flagsGrid">
+                </div>
+            </section>
+
+            <section class="redirect-section" aria-labelledby="redirect-title">
+                <h2 id="redirect-title">Redirect Chain</h2>
+                <div class="redirect-chain" id="redirectChain">
+                </div>
+            </section>
+
+            <section class="screenshot-section" aria-labelledby="screenshot-title">
+                <h2 id="screenshot-title">Screenshot Preview</h2>
+                <div class="screenshot-preview" id="screenshotPreview">
+                    <div class="screenshot-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <p>No screenshot available</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="recommendations-section" aria-labelledby="rec-title">
+                <h2 id="rec-title">Recommendations</h2>
+                <ul class="recommendations-list" id="recommendationsList">
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by AI • Built for security researchers</p>
+        </footer>
+    </div>
+
+    <script>
+        const mockData = {
+            "url": "http://example.com",
+            "risk_score": 65,
+            "risk_level": "High",
+            "indicators": [
+                {"name": "Domain age", "detail": "Registered 3 days ago", "severity": "high"},
+                {"name": "Suspicious keywords", "detail": "URL contains word secure", "severity": "medium"}
+            ],
+            "recommendations": ["Do not enter credentials on this site"]
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateData(mockData);
+            initGauge(mockData.risk_score, mockData.risk_level);
+        });
+
+        function populateData(data) {
+            document.getElementById('resultUrl').textContent = data.url;
+
+            document.getElementById('flagsGrid').innerHTML = data.indicators.map(indicator => `
+                <article class="flag-card severity-${indicator.severity}">
+                    <div class="flag-icon">
+                        ${getSeverityIcon(indicator.severity)}
+                    </div>
+                    <div class="flag-content">
+                        <h3>${indicator.name}</h3>
+                        <p>${indicator.detail}</h3>
+                    </div>
+                    <span class="severity-badge ${indicator.severity}">${indicator.severity}</span>
+                </article>
+            `).join('');
+
+            const redirectChain = document.getElementById('redirectChain');
+            redirectChain.innerHTML = `
+                <div class="redirect-hop">
+                    <div class="hop-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                        <span>${data.url}</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('recommendationsList').innerHTML = data.recommendations.map(rec => `
+                <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    ${rec}
+                </li>
+            `).join('');
+        }
+
+        function getSeverityIcon(severity) {
+            const icons = {
+                high: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+                medium: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+                low: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'
+            };
+            return icons[severity] || icons.medium;
+        }
+
+        function getGaugeColor(score) {
+            if (score <= 25) return '#4ade80';
+            if (score <= 50) return '#fbbf24';
+            if (score <= 75) return '#f97316';
+            return '#f87171';
+        }
+
+        function getLevelColor(level) {
+            const colors = {
+                'Safe': '#4ade80',
+                'Low': '#4ade80',
+                'Suspicious': '#fbbf24',
+                'Medium': '#fbbf24',
+                'High': '#f97316',
+                'Dangerous': '#f97316',
+                'Critical': '#f87171'
+            };
+            return colors[level] || '#fbbf24';
+        }
+
+        function initGauge(score, level) {
+            const ctx = document.getElementById('riskGauge').getContext('2d');
+            const color = getGaugeColor(score);
+            const levelColor = getLevelColor(level);
+
+            document.getElementById('riskScore').textContent = score;
+            document.getElementById('riskLevel').textContent = level;
+            document.getElementById('riskLevel').style.color = levelColor;
+            document.getElementById('riskScore').style.color = color;
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: [color, 'rgba(30, 41, 59, 0.5)'],
+                        borderWidth: 0,
+                        circumference: 180,
+                        rotation: 270,
+                        cutout: '75%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1500,
+                        easing: 'easeOutCubic'
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    cutout: '75%'
+                }
+            });
+        }
+
+        document.getElementById('copyUrl').addEventListener('click', () => {
+            const url = document.getElementById('resultUrl').textContent;
+            navigator.clipboard.writeText(url);
+            const btn = document.getElementById('copyUrl');
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+            setTimeout(() => {
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
