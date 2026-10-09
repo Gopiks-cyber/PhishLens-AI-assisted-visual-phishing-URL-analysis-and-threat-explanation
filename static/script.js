@@ -414,11 +414,18 @@ async function processScreenshot(file) {
                 showToast(`URL extracted from screenshot: ${primaryUrl}`, 'success');
             }
         } else {
-            showToast('No URL found in screenshot', 'error');
+            showToast('No URL found in screenshot — the image may not contain a recognizable link', 'info');
         }
     } catch (err) {
         console.error('OCR error:', err);
-        showToast('Failed to extract text from image', 'error');
+        const msg = err.message || String(err);
+        if (msg.includes('Tesseract') || msg.includes('worker') || msg.includes('load')) {
+            showToast('Failed to load OCR engine — check your internet connection', 'error');
+        } else if (msg.includes('recognize') || msg.includes('timeout')) {
+            showToast('OCR recognition failed — the image may be too blurry or complex', 'error');
+        } else {
+            showToast('Failed to extract text from image', 'error');
+        }
     } finally {
         statusEl.hidden = true;
     }

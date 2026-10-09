@@ -76,7 +76,35 @@
                 <p class="loading-text">Scanning URL<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
             </div>
 
-            <div class="results" id="results" hidden></div>
+            <div class="results" id="results" hidden>
+                <div class="result-header">
+                    <span class="result-verdict" id="resultVerdict"></span>
+                    <span class="result-confidence" id="resultConfidence"></span>
+                </div>
+                <div class="result-explanation" id="resultExplanation"></div>
+                <div class="score-breakdown" id="scoreBreakdown" hidden></div>
+                <div class="url-anatomy-section" id="urlAnatomySection" hidden>
+                    <h2>URL Anatomy</h2>
+                    <div class="anatomy-pills" id="anatomyPills" role="group" aria-label="URL components"></div>
+                    <div class="url-suspicious-components" id="suspiciousComponents"></div>
+                </div>
+                <div class="threat-map-section" id="threatMapSection" hidden>
+                    <h2>Threat Map</h2>
+                    <div class="threat-map-panel" id="threatMapPanel" aria-live="polite">
+                        <div class="threat-map-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                            <p>Select a URL component to view threat details</p>
+                        </div>
+                        <div class="threat-map-content" hidden></div>
+                    </div>
+                </div>
+                <div class="https-note" id="httpsNote" hidden></div>
+                <div class="result-indicators" id="resultIndicators"></div>
+            </div>
         </main>
 
         <footer>
