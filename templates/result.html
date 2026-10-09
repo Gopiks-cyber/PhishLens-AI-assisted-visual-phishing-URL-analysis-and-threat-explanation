@@ -42,6 +42,23 @@
                 </button>
             </div>
 
+            <section class="url-anatomy-section" aria-labelledby="anatomy-title">
+                <h2 id="anatomy-title">URL Anatomy</h2>
+                <div class="url-anatomy-display" id="urlAnatomyDisplay"></div>
+                <div class="url-suspicious-components" id="urlSuspiciousComponents"></div>
+                <div class="https-note" id="httpsNote" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <div class="https-note-content">
+                        <strong>HTTPS ≠ Safe</strong>
+                        <p>The padlock only means the connection is encrypted. Attackers routinely obtain valid TLS certificates for phishing domains. Always verify the domain name itself — not just the presence of HTTPS.</p>
+                    </div>
+                </div>
+            </section>
+
             <section class="gauge-section" aria-labelledby="gauge-title">
                 <h2 id="gauge-title" class="visually-hidden">Risk Score Gauge</h2>
                 <div class="gauge-wrapper">
@@ -91,16 +108,19 @@
         </footer>
     </div>
 
+    <script src="/static/script.js"></script>
     <script>
         const mockData = {
-            "url": "http://example.com",
-            "risk_score": 65,
-            "risk_level": "High",
+            "url": "http://secure-login.paypal.com.phishersite.xyz/account/verify?redirect=https://paypal.com&session=abc123",
+            "risk_score": 87,
+            "risk_level": "Critical",
             "indicators": [
                 {"name": "Domain age", "detail": "Registered 3 days ago", "severity": "high"},
-                {"name": "Suspicious keywords", "detail": "URL contains word secure", "severity": "medium"}
+                {"name": "Suspicious keywords", "detail": "URL contains word secure, login, verify", "severity": "high"},
+                {"name": "High-risk TLD", "detail": ".xyz TLD frequently abused for phishing", "severity": "medium"},
+                {"name": "Brand impersonation", "detail": "Contains 'paypal' in subdomain but not official domain", "severity": "high"}
             ],
-            "recommendations": ["Do not enter credentials on this site"]
+            "recommendations": ["Do not enter credentials on this site", "Report this URL to your IT security team", "Block this domain at network level"]
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -110,6 +130,7 @@
 
         function populateData(data) {
             document.getElementById('resultUrl').textContent = data.url;
+            renderUrlAnatomy(data.url);
 
             document.getElementById('flagsGrid').innerHTML = data.indicators.map(indicator => `
                 <article class="flag-card severity-${indicator.severity}">
