@@ -64,6 +64,13 @@
                     </svg>
                     <span>Recommendations</span>
                 </button>
+                <button role="tab" class="nav-item" data-view="investigations" aria-selected="false" aria-controls="panel-investigations" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span>Investigations</span>
+                </button>
             </nav>
             <div class="sidebar-footer">
                 <p class="version">v1.0.0</p>
@@ -306,6 +313,58 @@
                         <div class="recommendations-section" id="recommendationsSection" hidden>
                             <h2>Recommendations</h2>
                             <div class="recommendations-list" id="recommendationsList"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="tab-panel" id="panel-investigations" role="tabpanel" aria-labelledby="investigations-tab" tabindex="0" hidden>
+                    <div class="results-view">
+                        <header class="results-header">
+                            <div class="result-header">
+                                <span class="result-panel-title">Investigations</span>
+                            </div>
+                            <div class="investigations-toolbar">
+                                <button class="toolbar-btn" id="refreshInvestigationsBtn" title="Refresh" aria-label="Refresh investigations list">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </header>
+
+                        <div class="investigations-disclaimer">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="16" x2="12" y2="12"/>
+                                <line x1="12" y1="8" x2="12.01" y2="8"/>
+                            </svg>
+                            <span>Investigation history is stored locally in SQLite. Reports are heuristic assessments, not proof of maliciousness or safety. URLs are never fetched or contacted during analysis.</span>
+                        </div>
+
+                        <div class="investigations-loading" id="investigationsLoading" hidden>
+                            <div class="loading-spinner"></div>
+                            <span>Loading investigations...</span>
+                        </div>
+
+                        <div class="investigations-error" id="investigationsError" hidden>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                            <span id="investigationsErrorText">Failed to load investigations</span>
+                        </div>
+
+                        <div class="investigations-list" id="investigationsList" hidden></div>
+
+                        <div class="investigations-empty" id="investigationsEmpty" hidden>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            <p>No investigations saved yet</p>
+                            <p class="empty-hint">Analyze a URL to create your first investigation record</p>
                         </div>
                     </div>
                 </section>

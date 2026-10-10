@@ -1,6 +1,8 @@
 import pytest
 import json
+import uuid
 from app import app
+import investigations
 
 
 @pytest.fixture
@@ -8,6 +10,18 @@ def client():
     app.config["TESTING"] = True
     with app.test_client() as client:
         yield client
+
+
+@pytest.fixture(autouse=True)
+def clean_db():
+    """Ensure a clean database for each test."""
+    investigations.init_db()
+    conn = investigations.connect()
+    try:
+        conn.execute("DELETE FROM investigations")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class TestAnalyzeEndpoint:
@@ -250,6 +264,197 @@ class TestAnalyzeEndpoint:
             assert isinstance(ind.get("evidence", ""), str)
             assert isinstance(ind.get("detail", ""), str)
             assert isinstance(ind.get("explanation", ""), str)
+
+    def test_successful_analysis_returns_investigation_id_header(self, client):
+        """Successful analysis returns X-Investigation-ID header without changing JSON body."""
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "https://paypal.phisher.tk/login"}),
+            content_type="application/json"
+        )
+        assert response.status_code == 200
+        # Header present
+        investigation_id = response.headers.get("X-Investigation-ID")
+        assert investigation_id is not None
+        assert investigations.is_valid_id(investigation_id)
+        # JSON body unchanged
+        data = response.get_json()
+        assert data["url"] == "https://paypal.phisher.tk/login"
+        assert "risk_score" in data
+        assert "investigation_id" not in data  # Not in JSON body
+
+    def test_failed_analysis_no_investigation_id_header(self, client):
+        """Failed analysis (400) does not return investigation ID header."""
+        response = client.post(
+            "/api/analyze",
+            data=json.dumps({"url": "not-a-url"}),
+            content_type="application/json"
+        )
+        assert response.status_code == 400
+        investigation_id = response.headers.get("X-Investigation-ID")
+        assert investigation_id is None
+
+
+class TestInvestigationsListEndpoint:
+    def test_list_empty_initially(self, client):
+        response = client.get("/api/investigations")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["investigations"] == []
+        assert data["total"] == 0
+
+    def test_list_after_analysis(self, client):
+        # Create two investigations
+        client.post("/api/analyze", data=json.dumps({"url": "https://paypal.phisher.tk/login"}), content_type="application/json")
+        client.post("/api/analyze", data=json.dumps({"url": "https://example.com"}), content_type="application/json")
+
+        response = client.get("/api/investigations")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["total"] == 2
+        assert len(data["investigations"]) == 2
+
+    def test_list_pagination_limit(self, client):
+        for i in range(5):
+            client.post("/api/analyze", data=json.dumps({"url": f"https://example{i}.com"}), content_type="application/json")
+
+        response = client.get("/api/investigations?limit=2")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data["investigations"]) == 2
+        assert data["total"] == 5
+
+    def test_list_pagination_offset(self, client):
+        for i in range(5):
+            client.post("/api/analyze", data=json.dumps({"url": f"https://example{i}.com"}), content_type="application/json")
+
+        response = client.get("/api/investigations?limit=2&offset=2")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data["investigations"]) == 2
+        assert data["total"] == 5
+
+    def test_list_limit_validation_max(self, client):
+        response = client.get("/api/investigations?limit=999")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_list_limit_validation_min(self, client):
+        response = client.get("/api/investigations?limit=0")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_list_offset_validation_negative(self, client):
+        response = client.get("/api/investigations?offset=-1")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_list_urls_redacted(self, client):
+        url_with_creds = "https://user:pass@example.com/path"
+        client.post("/api/analyze", data=json.dumps({"url": url_with_creds}), content_type="application/json")
+
+        response = client.get("/api/investigations")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data["investigations"]) == 1
+        assert data["investigations"][0]["url"] == "https://[redacted]@example.com/path"
+
+    def test_list_order_newest_first(self, client):
+        client.post("/api/analyze", data=json.dumps({"url": "https://first.com"}), content_type="application/json")
+        client.post("/api/analyze", data=json.dumps({"url": "https://second.com"}), content_type="application/json")
+
+        response = client.get("/api/investigations")
+        assert response.status_code == 200
+        data = response.get_json()
+        # Newest first
+        assert data["investigations"][0]["url"] == "https://second.com"
+        assert data["investigations"][1]["url"] == "https://first.com"
+
+
+class TestInvestigationsDetailEndpoint:
+    def test_get_existing_investigation(self, client):
+        resp = client.post("/api/analyze", data=json.dumps({"url": "https://paypal.phisher.tk/login"}), content_type="application/json")
+        investigation_id = resp.headers.get("X-Investigation-ID")
+
+        response = client.get(f"/api/investigations/{investigation_id}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["investigation_id"] == investigation_id
+        assert data["url"] == "https://paypal.phisher.tk/login"
+        assert "risk_score" in data
+        assert "indicators" in data
+        assert "created_at" in data
+
+    def test_get_nonexistent_investigation(self, client):
+        fake_id = str(uuid.uuid4())
+        response = client.get(f"/api/investigations/{fake_id}")
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "Investigation not found"
+
+    def test_get_invalid_id_format(self, client):
+        response = client.get("/api/investigations/not-a-uuid")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid investigation ID format"
+
+    def test_detail_url_redacted(self, client):
+        url_with_creds = "https://user:pass@example.com/path"
+        resp = client.post("/api/analyze", data=json.dumps({"url": url_with_creds}), content_type="application/json")
+        investigation_id = resp.headers.get("X-Investigation-ID")
+
+        response = client.get(f"/api/investigations/{investigation_id}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["url"] == "https://[redacted]@example.com/path"
+
+    def test_detail_returns_stored_result_no_reanalysis(self, client):
+        resp = client.post("/api/analyze", data=json.dumps({"url": "https://paypal.phisher.tk/login"}), content_type="application/json")
+        investigation_id = resp.headers.get("X-Investigation-ID")
+
+        response = client.get(f"/api/investigations/{investigation_id}")
+        assert response.status_code == 200
+        data = response.get_json()
+        # Should have all original fields
+        assert "indicators" in data
+        assert "recommendations" in data
+        assert "score_breakdown" in data
+
+
+class TestInvestigationsPdfEndpoint:
+    def test_pdf_generation_success(self, client):
+        resp = client.post("/api/analyze", data=json.dumps({"url": "https://paypal.phisher.tk/login"}), content_type="application/json")
+        investigation_id = resp.headers.get("X-Investigation-ID")
+
+        response = client.get(f"/api/investigations/{investigation_id}/report.pdf")
+        assert response.status_code == 200
+        assert response.content_type == "application/pdf"
+        assert "attachment" in response.headers.get("Content-Disposition", "")
+        assert investigation_id[:8] in response.headers.get("Content-Disposition", "")
+
+    def test_pdf_nonexistent_investigation(self, client):
+        fake_id = str(uuid.uuid4())
+        response = client.get(f"/api/investigations/{fake_id}/report.pdf")
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "Investigation not found"
+
+    def test_pdf_invalid_id_format(self, client):
+        response = client.get("/api/investigations/not-a-uuid/report.pdf")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid investigation ID format"
+
+    def test_pdf_content_not_empty(self, client):
+        resp = client.post("/api/analyze", data=json.dumps({"url": "https://paypal.phisher.tk/login"}), content_type="application/json")
+        investigation_id = resp.headers.get("X-Investigation-ID")
+
+        response = client.get(f"/api/investigations/{investigation_id}/report.pdf")
+        assert response.status_code == 200
+        assert len(response.data) > 1000  # PDF should have substantial content
 
 
 class TestHealthEndpoint:
